@@ -1,11 +1,13 @@
 """Integration-ish test for AILoop with a mocked LLM."""
 
 import json
-import pytest
+
 import httpx
+import pytest
+
 from ai_browser_bot.driver import BrowserDriver
 from ai_browser_bot.llm import OpenAICompatibleClient
-from ai_browser_bot.loop import AILoop, LLMResponse
+from ai_browser_bot.loop import AILoop
 
 
 def openai_wrap(content: str) -> dict:

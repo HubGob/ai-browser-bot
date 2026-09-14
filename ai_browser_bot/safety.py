@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional, Set
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -12,7 +12,7 @@ class SafetyPolicy:
 
     def __init__(
         self,
-        allowed_domains: Optional[Set[str]] = None,
+        allowed_domains: set[str] | None = None,
         max_scroll_amount: int = 2000,
         max_wait_seconds: float = 10.0,
     ) -> None:
@@ -20,7 +20,7 @@ class SafetyPolicy:
         self.max_scroll_amount = max_scroll_amount
         self.max_wait_seconds = max_wait_seconds
 
-    def check(self, action: Dict[str, Any]) -> Optional[str]:
+    def check(self, action: dict[str, Any]) -> str | None:
         """Return an error string if the action is unsafe, or None if OK."""
         atype = action.get("type")
 
@@ -28,7 +28,7 @@ class SafetyPolicy:
         if atype == "navigate":
             url = action.get("target", "")
             if url.startswith("javascript:"):
-                return f"Navigation blocked: javascript: URIs are not allowed"
+                return "Navigation blocked: javascript: URIs are not allowed"
             if self.allowed_domains:
                 host = urlparse(url).hostname or ""
                 if host not in self.allowed_domains:

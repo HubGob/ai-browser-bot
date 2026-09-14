@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
-from ai_browser_bot.driver import BrowserDriver
-from ai_browser_bot.dom import DOMInspector
 from ai_browser_bot.actions import Action, ActionExecutor
+from ai_browser_bot.dom import DOMInspector
+from ai_browser_bot.driver import BrowserDriver
 from ai_browser_bot.llm import LLMClient
-from ai_browser_bot.safety import SafetyPolicy
 from ai_browser_bot.memory import SessionMemory
-
+from ai_browser_bot.safety import SafetyPolicy
 
 # ---------------------------------------------------------------------------
 # Structured LLM output — we ask the LLM to emit a JSON object
@@ -26,8 +25,8 @@ class LLMResponse(BaseModel):
     action: Action
     reasoning: str = ""
     done: bool = False
-    plan: Optional[List[str]] = None
-    next_task: Optional[str] = None
+    plan: list[str] | None = None
+    next_task: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -65,9 +64,9 @@ def build_user_prompt(
     snapshot: str,
     step: int,
     max_steps: int,
-    last_result: Optional[Dict[str, Any]] = None,
-    memory_summary: Optional[str] = None,
-    current_plan: Optional[List[str]] = None,
+    last_result: dict[str, Any] | None = None,
+    memory_summary: str | None = None,
+    current_plan: list[str] | None = None,
 ) -> str:
     """Build the user-message prompt for one loop iteration."""
     lines = [
@@ -75,7 +74,7 @@ def build_user_prompt(
         f"### Step {step} of {max_steps}\n",
     ]
     if current_plan:
-        lines.append(f"### Current Plan\n" + "\n".join(f"  {i+1}. {p}" for i, p in enumerate(current_plan)) + "\n")
+        lines.append("### Current Plan\n" + "\n".join(f"  {i+1}. {p}" for i, p in enumerate(current_plan)) + "\n")
     if memory_summary:
         lines.append(f"### Memory\n{memory_summary}\n")
     lines.append(f"### Page Snapshot\n```\n{snapshot}\n```\n")
@@ -100,7 +99,8 @@ class AILoop:
         task: str,
         max_steps: int = 20,
         dom_max_nodes: int = 200,
-        safety: Optional[SafetyPolicy] = None,
+        safety: SafetyPolicy | None = None,
+        write_viewer_state: bool = False,
     ) -> None:
         self.driver = driver
         self.llm = llm
@@ -110,15 +110,48 @@ class AILoop:
         self.executor = ActionExecutor(driver)
         self.safety = safety or SafetyPolicy()
         self.memory = SessionMemory()
+        self.write_viewer_state = write_viewer_state
+        self.action_log: list[str] = []
 
-    async def run(self) -> Dict[str, Any]:
+    def _write_viewer_state(self, step: int, status: str) -> None:
+        """Write run_state.json + screenshot.png for the static viewer.
+
+        The viewer polls run_state.json every second and renders the latest
+        screenshot and action log from a scrolling list.
+        """
+        state = {
+            "step": step,
+            "status": status,
+            "actions": self.action_log,
+        }
+        try:
+            with open("run_state.json", "w") as f:
+                json.dump(state, f, indent=2)
+            # Screenshot path is fixed so the viewer img src stays stable
+            # (cache-busting query param in viewer.html forces reload).
+            screenshot_path = "screenshot.png"
+            asyncio.create_task(
+                self._try_screenshot(screenshot_path)
+            )
+        except Exception:  # noqa: S110 BLE001 — viewer state is best-effort
+            # Viewer state is best-effort; never let it break the loop.
+            pass
+
+    async def _try_screenshot(self, path: str) -> None:
+        try:
+            await self.driver.screenshot(path)
+        except Exception:  # noqa: S110 BLE001 — screenshot failures are non-fatal
+            pass
+
+    async def run(self) -> dict[str, Any]:
         """Run the loop until done or max_steps reached."""
-        last_result: Optional[Dict[str, Any]] = None
-        current_plan: Optional[List[str]] = None
+        last_result: dict[str, Any] | None = None
+        current_plan: list[str] | None = None
 
         for step in range(1, self.max_steps + 1):
-            snapshot = await self.inspector.snapshot(self.driver.page)
-            memory_summary = self.memory.summary() if step > 1 else None
+            snapshot, memory_summary = await self._collect(
+                step, last_result, current_plan
+            )
 
             prompt = build_user_prompt(
                 self.task,
@@ -139,15 +172,29 @@ class AILoop:
             )
 
             if "error" in llm_result:
-                return {"status": "error", "step": step, "error": llm_result["error"]}
+                self._log_action(
+                    step, "error", f"LLM error: {llm_result['error']}"
+                )
+                result = {
+                    "status": "error",
+                    "step": step,
+                    "error": llm_result["error"],
+                }
+                if self.write_viewer_state:
+                    self._write_viewer_state(step, "error")
+                return result
 
             # Parse the LLM's JSON response into our structured model
             try:
                 parsed = LLMResponse.model_validate(
                     json.loads(llm_result["content"])
                 )
-            except Exception as e:
-                return {"status": "parse_error", "step": step, "error": str(e)}
+            except Exception as e:  # noqa: BLE001 — parse errors are captured as structured results
+                self._log_action(step, "parse_error", str(e))
+                result = {"status": "parse_error", "step": step, "error": str(e)}
+                if self.write_viewer_state:
+                    self._write_viewer_state(step, "parse_error")
+                return result
 
             # Update plan if provided
             if parsed.plan is not None:
@@ -160,24 +207,56 @@ class AILoop:
                 error_result = {"status": "error", "message": safety_violation}
                 self.memory.record(step, action_dict, error_result, snapshot)
                 last_result = error_result
+                self._log_action(step, action_dict["type"], "blocked")
+                if self.write_viewer_state:
+                    self._write_viewer_state(step, "error")
                 continue
 
             # Execute
             last_result = await self.executor.execute(parsed.action)
             self.memory.record(step, action_dict, last_result, snapshot)
+            self._log_action(
+                step, action_dict["type"], last_result.get("status", "?")
+            )
+
+            if self.write_viewer_state:
+                self._write_viewer_state(step, "running")
 
             if parsed.done:
-                return {
+                result = {
                     "status": "done",
                     "step": step,
                     "reasoning": parsed.reasoning,
                     "plan": current_plan,
                     "last_result": last_result,
                 }
+                if self.write_viewer_state:
+                    self._write_viewer_state(step, "done")
+                return result
 
-        return {
+        result = {
             "status": "max_steps_reached",
             "step": self.max_steps,
             "plan": current_plan,
             "last_result": last_result,
         }
+        if self.write_viewer_state:
+            self._write_viewer_state(self.max_steps, "max_steps_reached")
+        return result
+
+    async def _collect(
+        self,
+        step: int,
+        last_result: dict[str, Any] | None,
+        current_plan: list[str] | None,
+    ) -> tuple[str, str | None]:
+        snapshot = await self.inspector.snapshot(self.driver.page)
+        memory_summary = self.memory.summary() if step > 1 else None
+        return snapshot, memory_summary
+
+    def _log_action(self, step: int, action_type: str, outcome: str) -> None:
+        entry = f"Step {step}: {action_type} -> {outcome}"
+        self.action_log.append(entry)
+        # Keep the log bounded for memory safety
+        if len(self.action_log) > 100:
+            self.action_log = self.action_log[-100:]

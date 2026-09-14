@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -17,9 +17,9 @@ class LLMClient:
     def __init__(
         self,
         base_url: str,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = "gpt-4o-mini",
-        http_client: Optional[httpx.AsyncClient] = None,
+        http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -28,9 +28,9 @@ class LLMClient:
 
     async def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send a chat request and return the parsed response.
 
         Returns:
@@ -49,10 +49,10 @@ class OpenAICompatibleClient(LLMClient):
 
     async def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         **kwargs: Any,
-    ) -> Dict[str, Any]:
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
+    ) -> dict[str, Any]:
+        headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
@@ -78,5 +78,5 @@ class OpenAICompatibleClient(LLMClient):
             }
         except httpx.HTTPStatusError as e:
             return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — all LLM errors are captured as structured results
             return {"error": str(e)}

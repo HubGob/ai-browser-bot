@@ -1,6 +1,5 @@
 """Tests for SafetyPolicy."""
 
-import pytest
 from ai_browser_bot.safety import SafetyPolicy
 
 

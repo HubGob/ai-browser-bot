@@ -1,8 +1,9 @@
 """Tests for ActionExecutor."""
 
 import pytest
+
+from ai_browser_bot.actions import Action, ActionExecutor
 from ai_browser_bot.driver import BrowserDriver
-from ai_browser_bot.actions import ActionExecutor, Action
 
 
 @pytest.mark.asyncio

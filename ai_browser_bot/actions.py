@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,23 +20,23 @@ class Action(BaseModel):
     """A single browser action to execute."""
 
     type: ActionType
-    target: Optional[str] = Field(
+    target: str | None = Field(
         default=None,
         description="CSS selector, URL, or element description",
     )
-    text: Optional[str] = Field(
+    text: str | None = Field(
         default=None,
         description="Text to type (for 'type' action)",
     )
-    direction: Optional[str] = Field(
+    direction: str | None = Field(
         default=None,
         description="scroll direction: up, down, left, right",
     )
-    amount: Optional[int] = Field(
+    amount: int | None = Field(
         default=None,
         description="scroll amount in pixels",
     )
-    wait_seconds: Optional[float] = Field(
+    wait_seconds: float | None = Field(
         default=None,
         description="seconds to wait (for 'wait' action)",
     )
@@ -53,7 +53,7 @@ class ActionExecutor:
     def __init__(self, driver: BrowserDriver) -> None:
         self.driver = driver
 
-    async def execute(self, action: Action) -> Dict[str, Any]:
+    async def execute(self, action: Action) -> dict[str, Any]:
         """Run an action and return a result dict."""
         match action.type:
             case "click":
@@ -71,35 +71,35 @@ class ActionExecutor:
             case _:
                 return {"status": "error", "message": f"unknown action: {action.type}"}
 
-    async def _click(self, action: Action) -> Dict[str, Any]:
+    async def _click(self, action: Action) -> dict[str, Any]:
         if not action.target:
             return {"status": "error", "message": "click needs a target selector"}
         try:
             await self.driver.page.click(action.target)
             return {"status": "ok", "action": "click", "target": action.target}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — action errors are captured as structured results
             return {"status": "error", "message": str(e)}
 
-    async def _type(self, action: Action) -> Dict[str, Any]:
+    async def _type(self, action: Action) -> dict[str, Any]:
         if not action.target or not action.text:
             return {"status": "error", "message": "type needs target and text"}
         try:
             await self.driver.page.fill(action.target, action.text)
             return {"status": "ok", "action": "type", "target": action.target}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — action errors are captured as structured results
             return {"status": "error", "message": str(e)}
 
-    async def _navigate(self, action: Action) -> Dict[str, Any]:
+    async def _navigate(self, action: Action) -> dict[str, Any]:
         if not action.target:
             return {"status": "error", "message": "navigate needs a URL"}
         try:
             await self.driver.goto(action.target)
             title = await self.driver.page.title()
             return {"status": "ok", "action": "navigate", "url": action.target, "title": title}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — action errors are captured as structured results
             return {"status": "error", "message": str(e)}
 
-    async def _scroll(self, action: Action) -> Dict[str, Any]:
+    async def _scroll(self, action: Action) -> dict[str, Any]:
         direction = action.direction or "down"
         amount = action.amount or 300
         try:
@@ -108,18 +108,18 @@ class ActionExecutor:
                 f"() => window.scrollBy(0, {sign * amount})"
             )
             return {"status": "ok", "action": "scroll", "direction": direction, "amount": amount}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — action errors are captured as structured results
             return {"status": "error", "message": str(e)}
 
-    async def _screenshot(self, action: Action) -> Dict[str, Any]:
+    async def _screenshot(self, action: Action) -> dict[str, Any]:
         path = action.target or "screenshot.png"
         try:
             await self.driver.screenshot(path)
             return {"status": "ok", "action": "screenshot", "path": path}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — action errors are captured as structured results
             return {"status": "error", "message": str(e)}
 
-    async def _wait(self, action: Action) -> Dict[str, Any]:
+    async def _wait(self, action: Action) -> dict[str, Any]:
         seconds = action.wait_seconds or 1.0
         await asyncio.sleep(seconds)
         return {"status": "ok", "action": "wait", "seconds": seconds}

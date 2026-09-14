@@ -1,8 +1,10 @@
 """Tests for LLMClient — uses a mocked HTTP layer."""
 
 import json
-import pytest
+
 import httpx
+import pytest
+
 from ai_browser_bot.llm import OpenAICompatibleClient
 
 

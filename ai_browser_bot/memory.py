@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class SessionMemory:
@@ -10,14 +10,14 @@ class SessionMemory:
 
     def __init__(self, max_entries: int = 10) -> None:
         self.max_entries = max_entries
-        self._entries: List[Dict[str, Any]] = []
+        self._entries: list[dict[str, Any]] = []
 
     def record(
         self,
         step: int,
-        action: Dict[str, Any],
-        result: Dict[str, Any],
-        snapshot_preview: Optional[str] = None,
+        action: dict[str, Any],
+        result: dict[str, Any],
+        snapshot_preview: str | None = None,
     ) -> None:
         entry = {
             "step": step,
@@ -30,7 +30,7 @@ class SessionMemory:
         if len(self._entries) > self.max_entries:
             self._entries.pop(0)
 
-    def recent(self, n: int = 3) -> List[Dict[str, Any]]:
+    def recent(self, n: int = 3) -> list[dict[str, Any]]:
         """Return the most recent n entries."""
         return self._entries[-n:]
 

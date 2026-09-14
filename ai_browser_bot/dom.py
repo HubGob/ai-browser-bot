@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from playwright.async_api import ElementHandle, Page
 
 # Tags we skip when building a snapshot
@@ -73,7 +71,7 @@ class DOMInspector:
 
     async def _element_info(
         self, el: ElementHandle, max_text_len: int = 200
-    ) -> Optional[dict]:
+    ) -> dict | None:
         tag = await el.evaluate("el => el.tagName.toLowerCase()")
         if tag in SKIP_TAGS:
             return None

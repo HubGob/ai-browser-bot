@@ -1,6 +1,5 @@
 """Tests for CLI argument parsing."""
 
-import pytest
 from ai_browser_bot.cli import parse_args
 
 
