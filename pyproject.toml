@@ -15,8 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-llm = ["openai>=1.0"]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-mock>=3.12", "black", "ruff"]
+llm = ["openai>=1.0", "python-dotenv>=1.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-mock>=3.12", "black", "ruff", "python-dotenv>=1.0"]
 
 [project.scripts]
 ai-bot = "ai_browser_bot.cli:main"
