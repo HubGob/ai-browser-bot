@@ -147,9 +147,10 @@ def test_cli_exits_without_api_key(capsys):
         for k, v in __import__("os").environ.items()
         if k not in ("OPENAI_API_KEY", "LLM_API_KEY")
     }
-    with mock.patch.dict("os.environ", clean_env, clear=True):
-        with pytest.raises(SystemExit) as exc_info:
-            cli.main(argv)
+    with mock.patch.dict("os.environ", clean_env, clear=True), pytest.raises(
+        SystemExit
+    ) as exc_info:
+        cli.main(argv)
 
     assert exc_info.value.code != 0
     err = capsys.readouterr().err

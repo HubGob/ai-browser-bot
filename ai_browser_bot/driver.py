@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
 
@@ -19,10 +17,10 @@ class BrowserDriver:
     """
 
     def __init__(self) -> None:
-        self._playwright: Optional[any] = None
-        self._browser: Optional[Browser] = None
-        self._context: Optional[BrowserContext] = None
-        self._page: Optional[Page] = None
+        self._playwright: any | None = None
+        self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
+        self._page: Page | None = None
 
     @property
     def page(self) -> Page:

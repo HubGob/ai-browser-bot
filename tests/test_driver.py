@@ -1,6 +1,7 @@
 """Tests for BrowserDriver — requires Playwright browsers installed."""
 
 import pytest
+
 from ai_browser_bot.driver import BrowserDriver
 
 

@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
-from typing import Optional
 
 import anyio
 from dotenv import load_dotenv
@@ -21,7 +19,7 @@ from ai_browser_bot.llm import OpenAICompatibleClient
 from ai_browser_bot.loop import AILoop
 
 
-def _resolve_api_key(explicit: Optional[str], llm_url: str) -> str:
+def _resolve_api_key(explicit: str | None, llm_url: str) -> str:
     """Resolve the API key from explicit flag, then env vars.
 
     Supports both OPENAI_API_KEY (the conventional name) and LLM_API_KEY
@@ -34,7 +32,7 @@ def _resolve_api_key(explicit: Optional[str], llm_url: str) -> str:
     return os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY") or ""
 
 
-def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         prog="ai-bot",
         description="AI browser automation from scratch",
@@ -126,7 +124,7 @@ async def _run(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     exit_code = anyio.run(_run, args)
     sys.exit(exit_code)

@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
-from ai_browser_bot.driver import BrowserDriver
-from ai_browser_bot.dom import DOMInspector
 from ai_browser_bot.actions import Action, ActionExecutor
+from ai_browser_bot.dom import DOMInspector
+from ai_browser_bot.driver import BrowserDriver
 from ai_browser_bot.llm import LLMClient
-from ai_browser_bot.safety import SafetyPolicy
 from ai_browser_bot.memory import SessionMemory
-
+from ai_browser_bot.safety import SafetyPolicy
 
 # ---------------------------------------------------------------------------
 # Structured LLM output — we ask the LLM to emit a JSON object
@@ -26,8 +25,8 @@ class LLMResponse(BaseModel):
     action: Action
     reasoning: str = ""
     done: bool = False
-    plan: Optional[List[str]] = None
-    next_task: Optional[str] = None
+    plan: list[str] | None = None
+    next_task: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -65,9 +64,9 @@ def build_user_prompt(
     snapshot: str,
     step: int,
     max_steps: int,
-    last_result: Optional[Dict[str, Any]] = None,
-    memory_summary: Optional[str] = None,
-    current_plan: Optional[List[str]] = None,
+    last_result: dict[str, Any] | None = None,
+    memory_summary: str | None = None,
+    current_plan: list[str] | None = None,
 ) -> str:
     """Build the user-message prompt for one loop iteration."""
     lines = [
@@ -75,7 +74,7 @@ def build_user_prompt(
         f"### Step {step} of {max_steps}\n",
     ]
     if current_plan:
-        lines.append(f"### Current Plan\n" + "\n".join(f"  {i+1}. {p}" for i, p in enumerate(current_plan)) + "\n")
+        lines.append("### Current Plan\n" + "\n".join(f"  {i+1}. {p}" for i, p in enumerate(current_plan)) + "\n")
     if memory_summary:
         lines.append(f"### Memory\n{memory_summary}\n")
     lines.append(f"### Page Snapshot\n```\n{snapshot}\n```\n")
@@ -100,7 +99,7 @@ class AILoop:
         task: str,
         max_steps: int = 20,
         dom_max_nodes: int = 200,
-        safety: Optional[SafetyPolicy] = None,
+        safety: SafetyPolicy | None = None,
         write_viewer_state: bool = False,
     ) -> None:
         self.driver = driver
@@ -112,7 +111,7 @@ class AILoop:
         self.safety = safety or SafetyPolicy()
         self.memory = SessionMemory()
         self.write_viewer_state = write_viewer_state
-        self.action_log: List[str] = []
+        self.action_log: list[str] = []
 
     def _write_viewer_state(self, step: int, status: str) -> None:
         """Write run_state.json + screenshot.png for the static viewer.
@@ -134,20 +133,20 @@ class AILoop:
             asyncio.create_task(
                 self._try_screenshot(screenshot_path)
             )
-        except Exception:
+        except Exception:  # noqa: S110 BLE001 — viewer state is best-effort
             # Viewer state is best-effort; never let it break the loop.
             pass
 
     async def _try_screenshot(self, path: str) -> None:
         try:
             await self.driver.screenshot(path)
-        except Exception:
+        except Exception:  # noqa: S110 BLE001 — screenshot failures are non-fatal
             pass
 
-    async def run(self) -> Dict[str, Any]:
+    async def run(self) -> dict[str, Any]:
         """Run the loop until done or max_steps reached."""
-        last_result: Optional[Dict[str, Any]] = None
-        current_plan: Optional[List[str]] = None
+        last_result: dict[str, Any] | None = None
+        current_plan: list[str] | None = None
 
         for step in range(1, self.max_steps + 1):
             snapshot, memory_summary = await self._collect(
@@ -190,7 +189,7 @@ class AILoop:
                 parsed = LLMResponse.model_validate(
                     json.loads(llm_result["content"])
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — parse errors are captured as structured results
                 self._log_action(step, "parse_error", str(e))
                 result = {"status": "parse_error", "step": step, "error": str(e)}
                 if self.write_viewer_state:
@@ -248,9 +247,9 @@ class AILoop:
     async def _collect(
         self,
         step: int,
-        last_result: Optional[Dict[str, Any]],
-        current_plan: Optional[List[str]],
-    ) -> tuple[str, Optional[str]]:
+        last_result: dict[str, Any] | None,
+        current_plan: list[str] | None,
+    ) -> tuple[str, str | None]:
         snapshot = await self.inspector.snapshot(self.driver.page)
         memory_summary = self.memory.summary() if step > 1 else None
         return snapshot, memory_summary

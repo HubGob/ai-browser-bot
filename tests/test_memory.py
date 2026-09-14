@@ -1,6 +1,5 @@
 """Tests for SessionMemory."""
 
-import pytest
 from ai_browser_bot.memory import SessionMemory
 
 

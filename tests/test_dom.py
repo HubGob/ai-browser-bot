@@ -1,8 +1,9 @@
 """Tests for DOMInspector."""
 
 import pytest
-from ai_browser_bot.driver import BrowserDriver
+
 from ai_browser_bot.dom import DOMInspector
+from ai_browser_bot.driver import BrowserDriver
 
 
 @pytest.mark.asyncio
